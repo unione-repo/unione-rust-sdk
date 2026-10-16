@@ -1,0 +1,23 @@
+[package]
+name = "unione-rust-sdk"
+version = "1.1.2"
+edition = "2021"
+rust-version = "1.70"
+description = "UniOne Web API client library for Rust"
+license = "MIT"
+repository = "https://github.com/unione-repo/unione-rust-sdk"
+documentation = "https://docs.unione.io/en/web-api-ref"
+readme = "README.md"
+keywords = ["unione", "email", "api", "sdk"]
+categories = ["api-bindings", "email"]
+
+[lib]
+name = "unione"
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
