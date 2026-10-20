@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 /// The SDK and its version in the "platform" query parameter of every request.
-pub const PLATFORM: &str = "rust-sdk.1.1.2";
+pub const PLATFORM: &str = "rust-sdk.1.1.3";
 
 /// Sends API requests.
 #[derive(Debug, Clone)]
