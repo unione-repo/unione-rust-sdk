@@ -8,9 +8,10 @@ pub use error::ApiError;
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The SDK and its version in the "platform" query parameter of every request.
-pub const PLATFORM: &str = "rust-sdk.1.1.3";
+pub const PLATFORM: &str = "rust-sdk.1.2.3";
 
 /// Sends API requests.
 #[derive(Debug, Clone)]
@@ -109,4 +110,27 @@ impl ApiClient {
             .with_source(e)
         })
     }
+}
+
+/// Date and time in the format of the API, UTC "YYYY-MM-DD hh:mm:ss", e.g. `options.send_at` of `email/send` in
+/// an hour: `utc_datetime(SystemTime::now() + Duration::from_secs(3600))`.
+pub fn utc_datetime(time: SystemTime) -> String {
+    let secs = time.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let (days, rest) = (secs / 86_400, secs % 86_400);
+    // the civil date of a day number (Howard Hinnant's civil_from_days)
+    let z = days + 719_468;
+    let era = z / 146_097;
+    let doe = z % 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + u64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}",
+        rest / 3_600,
+        rest / 60 % 60,
+        rest % 60
+    )
 }

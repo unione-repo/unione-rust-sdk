@@ -255,6 +255,39 @@ pub struct MessageObjectRecipientsItem {
     pub metadata: Option<HashMap<String, String>>,
 }
 
+impl MessageObjectRecipientsItem {
+    /// A recipient from `email` or `Name <email>`: the name goes to the `to_name` substitution (the name in
+    /// the "To" header), then the substitutions, if any, are added.
+    pub fn from_address(address: &str, substitutions: Option<HashMap<String, String>>) -> Self {
+        let address = address.trim();
+        let parsed = address
+            .strip_suffix('>')
+            .and_then(|rest| rest.rsplit_once('<'))
+            .filter(|(_, email)| !email.is_empty() && !email.contains('>'));
+        let (name, email) = match parsed {
+            Some((name, email)) => (name.trim().trim_matches('"'), email.trim()),
+            None => ("", address),
+        };
+        let mut merged = HashMap::new();
+        if !name.is_empty() {
+            merged.insert("to_name".to_string(), name.to_string());
+        }
+        merged.extend(substitutions.unwrap_or_default());
+        MessageObjectRecipientsItem {
+            email: email.to_string(),
+            substitutions: (!merged.is_empty()).then_some(merged),
+            ..Default::default()
+        }
+    }
+
+    /// The recipient with the metadata (it comes back in the webhook events of the recipient):
+    /// `MessageObjectRecipientsItem::from_address("Alex <alex@example.com>", None).with_metadata(...)`.
+    pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+}
+
 /// Additional message options.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct MessageObjectOptions {

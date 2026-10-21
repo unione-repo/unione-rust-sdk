@@ -107,6 +107,25 @@ pub struct BodyObject {
     pub amp: Option<String>,
 }
 
+impl BodyObject {
+    /// An HTML body; with a plain-text part: `BodyObject { plaintext: Some(text), ..BodyObject::html(html)
+    /// }`.
+    pub fn html(html: impl Into<String>) -> Self {
+        BodyObject {
+            html: Some(html.into()),
+            ..Default::default()
+        }
+    }
+
+    /// A plain-text body.
+    pub fn text(plaintext: impl Into<String>) -> Self {
+        BodyObject {
+            plaintext: Some(plaintext.into()),
+            ..Default::default()
+        }
+    }
+}
+
 /// Contains email headers, maximum 50. Only headers with “X-” name prefix are accepted, all other are
 /// ignored, for example X-UNIONE-Global-Language, X-UNIONE-Template-Engine. Standard headers "To,"
 /// "CC," and "BCC" are passed without the "X-." Yet, they are processed in a particular way and, as a
@@ -179,6 +198,21 @@ pub struct AttachmentsArrayItem {
     pub content: String,
 }
 
+impl AttachmentsArrayItem {
+    /// An attachment from its bytes, `content` is base64-encoded.
+    pub fn from_bytes(
+        content_type: impl Into<String>,
+        name: impl Into<String>,
+        content: &[u8],
+    ) -> Self {
+        AttachmentsArrayItem {
+            type_: content_type.into(),
+            name: name.into(),
+            content: base64(content),
+        }
+    }
+}
+
 /// InlineAttachmentsArrayItem
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct InlineAttachmentsArrayItem {
@@ -196,6 +230,21 @@ pub struct InlineAttachmentsArrayItem {
     pub content: String,
 }
 
+impl InlineAttachmentsArrayItem {
+    /// An attachment from its bytes, `content` is base64-encoded.
+    pub fn from_bytes(
+        content_type: impl Into<String>,
+        name: impl Into<String>,
+        content: &[u8],
+    ) -> Self {
+        InlineAttachmentsArrayItem {
+            type_: content_type.into(),
+            name: name.into(),
+            content: base64(content),
+        }
+    }
+}
+
 /// SuccessResponse
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SuccessResponse {
@@ -203,4 +252,24 @@ pub struct SuccessResponse {
     /// Allowed values: `success`.
     #[serde(rename = "status", default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+}
+
+/// Standard base64 (with padding) of the bytes: the `content` of an attachment.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let mut n = 0u32;
+        for (i, &byte) in chunk.iter().enumerate() {
+            n |= u32::from(byte) << (16 - 8 * i);
+        }
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(char::from(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize]));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
 }

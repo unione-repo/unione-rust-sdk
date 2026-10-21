@@ -1,6 +1,6 @@
 [package]
 name = "unione-rust-sdk"
-version = "1.1.3"
+version = "1.2.3"
 edition = "2021"
 rust-version = "1.70"
 description = "UniOne Web API client library for Rust"
@@ -20,4 +20,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
+# md5: the webhook signature check of the README
+md5 = "0.7"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
