@@ -49,7 +49,7 @@ impl Configuration {
             api_key: api_key.into(),
             base_url: DEFAULT_BASE_URL.to_string(),
             timeout: Duration::from_secs(30),
-            user_agent: "unione-rust-sdk/1.2.3".to_string(),
+            user_agent: "unione-rust-sdk/1.2.4".to_string(),
             platform: None,
         }
     }

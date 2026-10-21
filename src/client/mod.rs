@@ -11,7 +11,7 @@ use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The SDK and its version in the "platform" query parameter of every request.
-pub const PLATFORM: &str = "rust-sdk.1.2.3";
+pub const PLATFORM: &str = "rust-sdk.1.2.4";
 
 /// Sends API requests.
 #[derive(Debug, Clone)]

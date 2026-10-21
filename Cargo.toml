@@ -1,6 +1,6 @@
 [package]
 name = "unione-rust-sdk"
-version = "1.2.3"
+version = "1.2.4"
 edition = "2021"
 rust-version = "1.70"
 description = "UniOne Web API client library for Rust"
