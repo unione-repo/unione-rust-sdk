@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The SDK and its version in the "platform" query parameter of every request.
-pub const PLATFORM: &str = "rust-sdk.1.3.1";
+pub const PLATFORM: &str = "rust-sdk.1.3.2";
 
 const EMPTY_KEY: &str =
     "the API key is empty: pass the API key of the user or of the project to the client";
