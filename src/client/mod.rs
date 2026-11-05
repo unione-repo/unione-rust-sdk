@@ -2,16 +2,20 @@
 
 mod configuration;
 mod error;
+mod error_info;
 
 pub use configuration::*;
-pub use error::ApiError;
+pub use error::{ApiError, ErrorKind};
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The SDK and its version in the "platform" query parameter of every request.
-pub const PLATFORM: &str = "rust-sdk.1.2.4";
+pub const PLATFORM: &str = "rust-sdk.1.3.0";
+
+const EMPTY_KEY: &str =
+    "the API key is empty: pass the API key of the user or of the project to the client";
 
 /// Sends API requests.
 #[derive(Debug, Clone)]
@@ -37,7 +41,33 @@ impl ApiClient {
     }
 
     /// Calls an API method, e.g. "/email/send.json", and decodes the response.
+    ///
+    /// Errors name the method: "email/send: Unknown recipient (API error 204, HTTP 400). Fix: ...".
+    /// An empty API key or a missing required field (`message.recipients`) is an
+    /// `ErrorKind::InvalidRequest` error: no request is sent then.
     pub async fn call<R: DeserializeOwned>(&self, path: &str, body: Value) -> Result<R, ApiError> {
+        let method = error_info::method_of(path);
+        if self.config.api_key.is_empty() {
+            let message = EMPTY_KEY.to_string();
+            return Err(fail(ErrorKind::InvalidRequest, &method, message));
+        }
+        let body = if body.is_null() {
+            Value::Object(Default::default())
+        } else {
+            body
+        };
+        if let Some(field) = error_info::missing(&method, &body) {
+            let message = format!("{field} is required");
+            return Err(fail(ErrorKind::InvalidRequest, &method, message));
+        }
+        let json = match serde_json::to_string(&body) {
+            Ok(json) => json,
+            Err(e) => {
+                let message = format!("can not encode the request: {e}");
+                let error = fail(ErrorKind::InvalidRequest, &method, message);
+                return Err(error.with_source(e));
+            }
+        };
         let url = format!(
             "{}/{}?platform={}",
             self.config.base_url.trim_end_matches('/'),
@@ -47,11 +77,6 @@ impl ApiClient {
                 _ => PLATFORM.to_string(),
             }
         );
-        let body = if body.is_null() {
-            Value::Object(Default::default())
-        } else {
-            body
-        };
         let response = self
             .http
             .post(url)
@@ -60,56 +85,88 @@ impl ApiClient {
             .header("Accept", "application/json")
             .header("User-Agent", &self.config.user_agent)
             .header("X-API-KEY", &self.config.api_key)
-            .body(serde_json::to_string(&body)?)
+            .body(json)
             .send()
             .await
-            .map_err(|e| ApiError::new(format!("HTTP request failed: {e}")).with_source(e))?;
+            .map_err(|e| self.transport_error(&method, e))?;
 
         let status = response.status().as_u16();
-        let raw = response.text().await.map_err(|e| {
-            ApiError {
-                http_status: status,
-                ..ApiError::new(format!("can not read the response: {e}"))
+        let raw = match response.text().await {
+            Ok(raw) => raw,
+            Err(e) => {
+                let error = self.transport_error(&method, e);
+                return Err(ApiError {
+                    http_status: status,
+                    ..error
+                });
             }
-            .with_source(e)
-        })?;
-        let data: Value = serde_json::from_str(&raw).map_err(|e| {
-            ApiError {
-                http_status: status,
-                body: Some(raw.clone()),
-                ..ApiError::new(format!("invalid JSON in response: {e}"))
+        };
+        let data: Value = match serde_json::from_str(&raw) {
+            Ok(data) => data,
+            Err(e) => {
+                let quoted = error_info::quote(&raw);
+                let message = format!("invalid JSON in response (HTTP {status}): {quoted}");
+                let error = fail(ErrorKind::InvalidResponse, &method, message);
+                return Err(ApiError {
+                    http_status: status,
+                    body: Some(raw),
+                    ..error.with_source(e)
+                });
             }
-            .with_source(e)
-        })?;
+        };
         if !data.is_object() {
+            let quoted = error_info::quote(&raw);
+            let message = format!("unexpected response (HTTP {status}): {quoted}");
             return Err(ApiError {
                 http_status: status,
                 body: Some(raw),
-                ..ApiError::new("unexpected response")
+                ..fail(ErrorKind::InvalidResponse, &method, message)
             });
         }
         if status >= 400 || data.get("status").and_then(Value::as_str) == Some("error") {
+            let code = error_info::code_of(data.get("code"));
+            let message = data.get("message").and_then(Value::as_str);
+            let text = error_info::api_message(&method, message.unwrap_or(""), status, code);
+            let error = ApiError::new(text).with_method(&method);
             return Err(ApiError {
-                message: data
-                    .get("message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("API error")
-                    .to_string(),
                 http_status: status,
-                code: data.get("code").and_then(Value::as_i64),
+                code,
                 body: Some(raw),
-                source: None,
+                hint: error_info::hint(code),
+                api_message: message.map(str::to_string),
+                ..error
             });
         }
         serde_json::from_value(data).map_err(|e| {
+            let message = format!("can not decode the response: {e}");
+            let error = fail(ErrorKind::InvalidResponse, &method, message);
             ApiError {
                 http_status: status,
                 body: Some(raw),
-                ..ApiError::new(format!("can not decode the response: {e}"))
+                ..error.with_source(e)
             }
-            .with_source(e)
         })
     }
+
+    /// The error of a request that failed: a timeout or a network error.
+    fn transport_error(&self, method: &str, e: reqwest::Error) -> ApiError {
+        let error = if e.is_timeout() {
+            let secs = self.config.timeout.as_secs_f64();
+            let message = format!("HTTP request timed out after {secs} s");
+            fail(ErrorKind::Timeout, method, message)
+        } else {
+            let message = format!("HTTP request failed: {e}");
+            fail(ErrorKind::Network, method, message)
+        };
+        error.with_source(e)
+    }
+}
+
+/// An error of a method: the message starts with the method.
+fn fail(kind: ErrorKind, method: &str, message: String) -> ApiError {
+    ApiError::new(format!("{method}: {message}"))
+        .with_kind(kind)
+        .with_method(method)
 }
 
 /// Date and time in the format of the API, UTC "YYYY-MM-DD hh:mm:ss", e.g. `options.send_at` of `email/send` in

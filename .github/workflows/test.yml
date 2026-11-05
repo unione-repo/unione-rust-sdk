@@ -1,0 +1,28 @@
+# Generated: the tests of the package on every push and pull request (and before a release). Do not edit, the next
+# release replaces it. The tests need no network: the API is faked.
+name: Tests
+
+on:
+  push:
+    branches: ["**"]  # not the tags: release.yml runs the tests of a tag itself
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        v: ["stable"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.v }}
+      - run: |
+          cargo test

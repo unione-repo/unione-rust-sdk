@@ -53,11 +53,13 @@
 //! }
 //! ```
 
+#![allow(clippy::result_large_err)]
+
 pub mod api;
 pub mod client;
 pub mod common;
 
-pub use client::{ApiClient, ApiError, Configuration};
+pub use client::{ApiClient, ApiError, Configuration, ErrorKind};
 pub use serde_json;
 
 /// Entry point of the UniOne API: one accessor per section.

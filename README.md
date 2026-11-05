@@ -15,7 +15,7 @@ cargo add unione-rust-sdk
 cargo add tokio --features macros,rt-multi-thread
 ```
 
-Requirements: Rust 1.70+ (edition 2021), async runtime (tokio). No third-party dependencies.
+Requirements: Rust 1.70+ (edition 2021), async runtime (tokio). Dependencies: reqwest, serde, serde_json.
 
 Get an API key in the [control panel](https://cp.unione.io/en/settings/security/api) and keep it in the environment, never in code:
 
@@ -168,7 +168,7 @@ client.email().send(&EmailSendRequest { message }).await?;
 
 ### Retry safely
 
-A repeat with the same `idempotence_key` within a minute is not sent twice: retry network errors, timeouts, 429 and 5xx with it.
+A repeat with the same `idempotence_key` within a minute is not sent twice: retry the retryable errors (network errors, timeouts, 429 and 5xx) with it; after that minute check your own record of the sent email before repeating.
 
 ```rust
 let message = MessageObject {
@@ -188,8 +188,9 @@ Recipients the API drops (unsubscribed, invalid, suppressed) are not an error: t
 
 ```rust
 if let Err(e) = client.email().send(&request).await {
-    // HTTP status (0: network error or timeout), API error code, message
-    eprintln!("{} {} {}", e.http_status, e.code.unwrap_or(0), e.message);
+    // the message: method, API error code, HTTP status and how to fix it; kind: what failed; retryable: a repeat may succeed
+    eprintln!("{e}");
+    eprintln!("{} retryable: {}", e.kind, e.retryable());
 }
 ```
 
@@ -385,9 +386,17 @@ let headers = HeadersObject {
 };
 ```
 
+Rust 1.70: the newest versions of the reqwest/rustls/url dependencies need a newer compiler. Lock compatible versions with a stable Cargo (1.84+: its resolver picks the versions that fit `rust-version`; idna_adapter is pinned to 1.1), then build with 1.70:
+
+```sh
+CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo +stable update
+cargo +stable update -p idna_adapter --precise 1.1.0
+cargo +1.70 build
+```
+
 ### Error handling
 
-Every method raises `ApiError` when the API returns an error; it carries the [API error code](https://docs.unione.io/en/web-api-ref#api-errors) and the HTTP status.
+Every method raises `ApiError`: an error of the API, a network error or a timeout, a broken response, and a mistake found before sending (an empty API key, a missing or empty `message.recipients` or `email` of a recipient: no request is sent). The message names the method and, for an API error, the [API error code](https://docs.unione.io/en/web-api-ref#api-errors), the HTTP status and how to fix it: `email/send: Unknown recipient (API error 204, HTTP 400). Fix: ...`. The error also tells what failed (its kind: api, network, timeout, invalid_response, invalid_request), whether a repeat may succeed (network, timeout, HTTP 429 and 5xx; not a request you cancelled) and keeps the API's own message text, in full and undecorated, in `api_message` (empty without an API response).
 
 ## Help
 

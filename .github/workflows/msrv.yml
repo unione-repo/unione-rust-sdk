@@ -1,0 +1,23 @@
+# Generated: checks that the crate builds with its rust-version (1.70). Do not edit, the next release replaces it.
+name: MSRV
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.70
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Lock the dependencies that build with Rust 1.70
+        run: |
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo +stable generate-lockfile
+          if grep -q 'name = "idna_adapter"' Cargo.lock; then cargo +stable update -p idna_adapter --precise 1.1.0; fi
+      - run: cargo +1.70 check --locked
