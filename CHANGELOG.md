@@ -2,6 +2,12 @@
 
 All notable changes of this package. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.1](https://github.com/unione-repo/unione-rust-sdk/releases/tag/v1.3.1) - 2026-11-05
+
+### Fixed
+
+- Rust 1.70: serde is pinned to 1.0.228 (newer serde_derive needs Rust 1.71) in the MSRV workflow and the README pins.
+
 ## [1.3.0](https://github.com/unione-repo/unione-rust-sdk/releases/tag/v1.3.0) - 2026-11-05
 
 ### Added

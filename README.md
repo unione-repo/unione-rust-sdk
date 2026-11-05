@@ -386,10 +386,12 @@ let headers = HeadersObject {
 };
 ```
 
-Rust 1.70: the newest versions of the reqwest/rustls/url dependencies need a newer compiler. Lock compatible versions with a stable Cargo (1.84+: its resolver picks the versions that fit `rust-version`; idna_adapter is pinned to 1.1), then build with 1.70:
+Rust 1.70: the newest versions of the reqwest/rustls/url/serde dependencies need a newer compiler. Lock compatible versions with a stable Cargo (1.84+: its resolver picks the versions that fit `rust-version`; serde is pinned to 1.0.228, idna_adapter to 1.1), then build with 1.70:
 
 ```sh
-CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo +stable update
+export CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback
+cargo +stable update
+cargo +stable update -p serde --precise 1.0.228
 cargo +stable update -p idna_adapter --precise 1.1.0
 cargo +1.70 build
 ```
